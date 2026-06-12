@@ -1,0 +1,134 @@
+/* ===== Global Button Overrides — Glassmorphism + Dark Pill Aesthetic ===== */
+
+/* --- Base: all buttons --- */
+.ant-btn {
+  border-radius: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease,
+    background 0.25s ease,
+    border-color 0.25s ease,
+    opacity 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* --- Primary (solid dark, matches pill nav #120F17) --- */
+.ant-btn-primary {
+  background: #120F17;
+  border-color: #120F17;
+  box-shadow: 0 2px 8px rgba(18, 15, 23, 0.12);
+}
+.ant-btn-primary:not(:disabled):hover {
+  background: #2a2530;
+  border-color: #2a2530;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(18, 15, 23, 0.22);
+}
+.ant-btn-primary:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 1px 4px rgba(18, 15, 23, 0.08);
+  transition-duration: 0.1s;
+}
+
+/* --- Default --- */
+.ant-btn-default {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+.ant-btn-default:not(:disabled):hover {
+  border-color: #120F17;
+  color: #120F17;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+}
+.ant-btn-default:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 0.1s;
+}
+
+/* --- Danger --- */
+.ant-btn-danger {
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08);
+}
+.ant-btn-danger:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.18);
+}
+.ant-btn-danger:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 0.1s;
+}
+.ant-btn-danger.ant-btn-background-ghost {
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+}
+.ant-btn-danger.ant-btn-background-ghost:not(:disabled):hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+/* --- Ghost + Primary --- */
+.ant-btn-background-ghost.ant-btn-primary {
+  border-color: #120F17;
+  color: #120F17;
+  background: transparent;
+  border-width: 1.5px;
+}
+.ant-btn-background-ghost.ant-btn-primary:not(:disabled):hover {
+  background: #120F17;
+  color: #fff;
+}
+
+/* --- Link buttons --- */
+.ant-btn-link {
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-weight: 500;
+}
+.ant-btn-link:not(:disabled):hover {
+  background: rgba(18, 15, 23, 0.05);
+  border-radius: 6px;
+}
+
+/* --- Disabled --- */
+.ant-btn[disabled],
+.ant-btn.ant-btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* --- Loading --- */
+.ant-btn-loading {
+  pointer-events: none;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* --- Focus ring (accessible) --- */
+.ant-btn:focus-visible {
+  outline: 2px solid #120F17;
+  outline-offset: 2px;
+}
+
+/* --- Full-width form buttons (extra breathing room) --- */
+.ant-btn[style*="width: 100%"] {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 15px;
+}
+
+/* --- Table action links: tighter spacing --- */
+.ant-table .ant-btn-link,
+.ant-table .ant-btn.ant-btn-link {
+  padding: 2px 6px;
+  font-size: 13px;
+}

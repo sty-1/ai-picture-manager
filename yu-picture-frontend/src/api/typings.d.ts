@@ -357,6 +357,23 @@ declare namespace API {
     tags?: string[]
   }
 
+  type GeneratePictureTagsRequest = {
+    pictureIdList?: number[]
+  }
+
+  type AiTagResult = {
+    category?: string
+    id?: number
+    name?: string
+    tags?: string[]
+  }
+
+  type BaseResponseListAiTagResult_ = {
+    code?: number
+    data?: AiTagResult[]
+    message?: string
+  }
+
   type PictureEditRequest = {
     category?: string
     id?: number

@@ -3,8 +3,33 @@
     <a-flex justify="space-between">
       <h2>图片管理</h2>
       <a-space>
-        <a-button type="primary" href="/add_picture" target="_blank">+ 创建图片</a-button>
-        <a-button type="primary" href="/add_picture/batch" target="_blank" ghost>+ 批量创建图片</a-button>
+        <a-button v-btn-animate type="primary" href="/add_picture" target="_blank">+ 创建图片</a-button>
+        <a-button v-btn-animate type="primary" href="/add_picture/batch" target="_blank" ghost>+ 批量创建图片</a-button>
+        <a-button
+          v-btn-animate
+          type="primary"
+          ghost
+          :disabled="selectedRowKeys.length === 0"
+          @click="doBatchPass"
+        >
+          批量通过
+        </a-button>
+        <a-button
+          v-btn-animate
+          danger
+          :disabled="selectedRowKeys.length === 0"
+          @click="doBatchDelete"
+        >
+          批量删除
+        </a-button>
+        <a-button
+          v-btn-animate
+          type="primary"
+          :disabled="selectedRowKeys.length === 0"
+          @click="doBatchTag"
+        >
+          批量插入标签
+        </a-button>
       </a-space>
     </a-flex>
     <div style="margin-bottom: 16px" />
@@ -39,12 +64,14 @@
         />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit">搜索</a-button>
+        <a-button v-btn-animate type="primary" html-type="submit">搜索</a-button>
       </a-form-item>
     </a-form>
     <div style="margin-bottom: 16px" />
     <!-- 表格 -->
     <a-table
+      :row-selection="rowSelection"
+      :row-key="(record: API.Picture) => record.id"
       :columns="columns"
       :data-source="dataList"
       :pagination="pagination"
@@ -71,7 +98,10 @@
         <template v-if="column.dataIndex === 'reviewMessage'">
           <div>审核状态：{{ PIC_REVIEW_STATUS_MAP[record.reviewStatus] }}</div>
           <div>审核信息：{{ record.reviewMessage }}</div>
-          <div>审核人：{{ record.reviewerId }}</div>
+          <div>
+            审核人：<span v-if="record.reviewerId">管理员（{{ record.reviewerId }}）</span>
+            <a-tag v-else color="purple">AI 审核</a-tag>
+          </div>
           <div v-if="record.reviewTime">
             审核时间：{{ dayjs(record.reviewTime).format('YYYY-MM-DD HH:mm:ss') }}
           </div>
@@ -107,6 +137,11 @@
         </template>
       </template>
     </a-table>
+    <BatchTagModal
+      ref="batchTagModalRef"
+      :picture-id-list="selectedRowKeys"
+      :on-success="onBatchTagSuccess"
+    />
   </div>
 </template>
 <script lang="ts" setup>
@@ -116,12 +151,13 @@ import {
   doPictureReviewUsingPost,
   listPictureByPageUsingPost,
 } from '@/api/pictureController.ts'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import {
   PIC_REVIEW_STATUS_ENUM,
   PIC_REVIEW_STATUS_MAP,
   PIC_REVIEW_STATUS_OPTIONS,
 } from '../../constants/picture.ts'
+import BatchTagModal from '@/components/BatchTagModal.vue'
 import dayjs from 'dayjs'
 
 const columns = [
@@ -226,7 +262,7 @@ const pagination = computed(() => {
 })
 
 // 表格变化之后，重新获取数据
-const doTableChange = (page: any) => {
+const doTableChange = (page: { current: number; pageSize: number }) => {
   searchParams.current = page.current
   searchParams.pageSize = page.pageSize
   fetchData()
@@ -237,6 +273,88 @@ const doSearch = () => {
   // 重置页码
   searchParams.current = 1
   fetchData()
+}
+
+// --- 批量选择 ---
+const selectedRowKeys = ref<(string | number)[]>([])
+
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: (keys: (string | number)[]) => {
+    selectedRowKeys.value = keys
+  },
+}))
+
+// 批量通过
+const doBatchPass = () => {
+  const count = selectedRowKeys.value.length
+  Modal.confirm({
+    title: '批量审核通过',
+    content: `确定要将选中的 ${count} 张图片全部审核通过吗？`,
+    okText: '确认通过',
+    cancelText: '取消',
+    okButtonProps: { type: 'primary' },
+    onOk: async () => {
+      const results = await Promise.allSettled(
+        selectedRowKeys.value.map((id) =>
+          doPictureReviewUsingPost({
+            id: id as string,
+            reviewStatus: PIC_REVIEW_STATUS_ENUM.PASS,
+            reviewMessage: '管理员批量操作通过',
+          })
+        )
+      )
+      const succeeded = results.filter((r) => r.status === 'fulfilled' && r.value.data?.code === 0).length
+      const failed = count - succeeded
+      if (failed > 0) {
+        message.warning(`通过 ${succeeded} 张，失败 ${failed} 张`)
+      } else {
+        message.success(`已全部通过（${count} 张）`)
+      }
+      selectedRowKeys.value = []
+      fetchData()
+    },
+  })
+}
+
+// --- 批量插入标签 ---
+const batchTagModalRef = ref<InstanceType<typeof BatchTagModal>>()
+
+const doBatchTag = () => {
+  batchTagModalRef.value?.openModal()
+}
+
+const onBatchTagSuccess = () => {
+  selectedRowKeys.value = []
+  fetchData()
+}
+
+// 批量删除
+const doBatchDelete = () => {
+  const count = selectedRowKeys.value.length
+  Modal.confirm({
+    title: '批量删除图片',
+    content: `确定要删除选中的 ${count} 张图片吗？此操作不可撤销。`,
+    okText: '确认删除',
+    cancelText: '取消',
+    okButtonProps: { danger: true },
+    onOk: async () => {
+      const results = await Promise.allSettled(
+        selectedRowKeys.value.map((id) =>
+          deletePictureUsingPost({ id: id as string })
+        )
+      )
+      const succeeded = results.filter((r) => r.status === 'fulfilled' && r.value.data?.code === 0).length
+      const failed = count - succeeded
+      if (failed > 0) {
+        message.warning(`删除 ${succeeded} 张，失败 ${failed} 张`)
+      } else {
+        message.success(`已全部删除（${count} 张）`)
+      }
+      selectedRowKeys.value = []
+      fetchData()
+    },
+  })
 }
 
 // 删除数据

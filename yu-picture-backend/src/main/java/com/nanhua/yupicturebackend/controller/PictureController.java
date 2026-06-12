@@ -28,6 +28,7 @@ import com.nanhua.yupicturebackend.model.entity.Picture;
 import com.nanhua.yupicturebackend.model.entity.Space;
 import com.nanhua.yupicturebackend.model.entity.User;
 import com.nanhua.yupicturebackend.model.enums.PictureReviewStatusEnum;
+import com.nanhua.yupicturebackend.model.vo.AiTagResult;
 import com.nanhua.yupicturebackend.model.vo.PictureTagCategory;
 import com.nanhua.yupicturebackend.model.vo.PictureVO;
 import com.nanhua.yupicturebackend.service.PictureService;
@@ -85,6 +86,60 @@ public class PictureController {
             .expireAfterWrite(Duration.ofMinutes(5))
             .build();
 
+    private static final String PIC_LIST_CACHE_PREFIX = "yupicture:listPictureVOByPage:";
+
+    /**
+     * 公开图库分页查询（Redis + Caffeine 二级缓存）
+     */
+    private Page<PictureVO> getPublicPictureVOPageWithCache(PictureQueryRequest query, HttpServletRequest request) {
+        long current = query.getCurrent();
+        long size = query.getPageSize();
+        String queryJson = JSONUtil.toJsonStr(query);
+        String hashKey = DigestUtils.md5DigestAsHex(queryJson.getBytes());
+        String cacheKey = PIC_LIST_CACHE_PREFIX + hashKey;
+        ValueOperations<String, String> opsForValue = stringRedisTemplate.opsForValue();
+
+        // 1. 本地缓存
+        String cached = LOCAL_CACHE.getIfPresent(cacheKey);
+        if (cached != null) {
+            return JSONUtil.toBean(cached, Page.class);
+        }
+        // 2. Redis
+        try {
+            cached = opsForValue.get(cacheKey);
+            if (cached != null) {
+                LOCAL_CACHE.put(cacheKey, cached);
+                return JSONUtil.toBean(cached, Page.class);
+            }
+        } catch (Exception e) {
+            log.warn("Redis 读取异常，回源 MySQL：{}", e.getMessage());
+        }
+        // 3. MySQL
+        Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
+                pictureService.getQueryWrapper(query));
+        Page<PictureVO> voPage = pictureService.getPictureVOPage(picturePage, request);
+        String value = JSONUtil.toJsonStr(voPage);
+        try {
+            int expireTime = 300 + RandomUtil.randomInt(0, 300);
+            opsForValue.set(cacheKey, value, expireTime, TimeUnit.SECONDS);
+            LOCAL_CACHE.put(cacheKey, value);
+        } catch (Exception e) {
+            log.warn("Redis 写入异常：{}", e.getMessage());
+        }
+        return voPage;
+    }
+
+    /**
+     * 清除公开图库列表缓存（图片变更时调用）
+     */
+    private void clearPublicPictureCache() {
+        java.util.Set<String> keys = stringRedisTemplate.keys(PIC_LIST_CACHE_PREFIX + "*");
+        if (keys != null && !keys.isEmpty()) {
+            stringRedisTemplate.delete(keys);
+        }
+        LOCAL_CACHE.invalidateAll();
+    }
+
     /**
      * 上传图片（可重新上传）
      */
@@ -97,6 +152,7 @@ public class PictureController {
             HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
         PictureVO pictureVO = pictureService.uploadPicture(multipartFile, pictureUploadRequest, loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(pictureVO);
     }
 
@@ -111,6 +167,7 @@ public class PictureController {
         User loginUser = userService.getLoginUser(request);
         String fileUrl = pictureUploadRequest.getFileUrl();
         PictureVO pictureVO = pictureService.uploadPicture(fileUrl, pictureUploadRequest, loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(pictureVO);
     }
 
@@ -123,6 +180,7 @@ public class PictureController {
         }
         User loginUser = userService.getLoginUser(request);
         pictureService.deletePicture(deleteRequest.getId(), loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(true);
     }
 
@@ -231,26 +289,17 @@ public class PictureController {
         // 空间权限校验
         Long spaceId = pictureQueryRequest.getSpaceId();
         if (spaceId == null) {
-            // 公开图库
-            // 普通用户默认只能看到审核通过的数据
+            // 公开图库 → 加缓存
             pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
             pictureQueryRequest.setNullSpaceId(true);
+            return ResultUtils.success(getPublicPictureVOPageWithCache(pictureQueryRequest, request));
         } else {
             boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
             ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
-            // 已经改为使用注解鉴权
-//            // 私有空间
-//            User loginUser = userService.getLoginUser(request);
-//            Space space = spaceService.getById(spaceId);
-//            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-//            if (!loginUser.getId().equals(space.getUserId())) {
-//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-//            }
         }
-        // 查询数据库
+        // 空间图片 → 直接查库，不缓存
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
                 pictureService.getQueryWrapper(pictureQueryRequest));
-        // 获取封装类
         return ResultUtils.success(pictureService.getPictureVOPage(picturePage, request));
     }
 
@@ -315,7 +364,21 @@ public class PictureController {
         }
         User loginUser = userService.getLoginUser(request);
         pictureService.editPicture(pictureEditRequest, loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(true);
+    }
+
+    /**
+     * AI 智能标签生成
+     */
+    @PostMapping("/tag/generate")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<List<AiTagResult>> generatePictureTags(@RequestBody GeneratePictureTagsRequest generatePictureTagsRequest,
+                                                                HttpServletRequest request) {
+        ThrowUtils.throwIf(generatePictureTagsRequest == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        List<AiTagResult> results = pictureService.generatePictureTags(generatePictureTagsRequest, loginUser);
+        return ResultUtils.success(results);
     }
 
     @GetMapping("/tag_category")
@@ -338,6 +401,7 @@ public class PictureController {
         ThrowUtils.throwIf(pictureReviewRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
         pictureService.doPictureReview(pictureReviewRequest, loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(true);
     }
 
@@ -351,6 +415,7 @@ public class PictureController {
         ThrowUtils.throwIf(pictureUploadByBatchRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
         int uploadCount = pictureService.uploadPictureByBatch(pictureUploadByBatchRequest, loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(uploadCount);
     }
 
@@ -391,6 +456,7 @@ public class PictureController {
         ThrowUtils.throwIf(pictureEditByBatchRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
         pictureService.editPictureByBatch(pictureEditByBatchRequest, loginUser);
+        clearPublicPictureCache();
         return ResultUtils.success(true);
     }
 

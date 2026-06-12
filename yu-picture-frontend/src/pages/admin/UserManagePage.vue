@@ -9,7 +9,7 @@
         <a-input v-model:value="searchParams.userName" placeholder="输入用户名" allow-clear />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit">搜索</a-button>
+        <a-button v-btn-animate type="primary" html-type="submit">搜索</a-button>
       </a-form-item>
     </a-form>
     <div style="margin-bottom: 16px" />

@@ -211,6 +211,21 @@ export async function listPictureTagCategoryUsingGet(options?: { [key: string]: 
   })
 }
 
+/** generatePictureTagsUsingPost POST /api/picture/tag/generate */
+export async function generatePictureTagsUsingPost(
+  body: API.GeneratePictureTagsRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseListAiTagResult_>('/api/picture/tag/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** updatePicture POST /api/picture/update */
 export async function updatePictureUsingPost(
   body: API.PictureUpdateRequest,

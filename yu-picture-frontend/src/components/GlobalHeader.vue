@@ -1,106 +1,92 @@
 <template>
   <div id="globalHeader">
-    <a-row :wrap="false">
-      <a-col flex="200px">
-        <router-link to="/">
-          <div class="title-bar">
-            <img class="logo" src="../assets/logo.png" alt="logo" />
-            <div class="title">智能云图库</div>
-          </div>
-        </router-link>
-      </a-col>
-      <a-col flex="auto">
-        <a-menu
-          v-model:selectedKeys="current"
-          mode="horizontal"
-          :items="items"
-          @click="doMenuClick"
-        />
-      </a-col>
+    <div class="header-inner">
+      <!-- 胶囊导航（含 logo + 菜单项） -->
+      <PillNav
+        :logo="logoUrl"
+        logo-alt="智能云图库"
+        :items="navItems"
+        :active-href="activePath"
+        base-color="#e0e0e0"
+        pill-color="#fafafa"
+        hovered-pill-text-color="#333"
+        pill-text-color="#333"
+        class="header-pill-nav"
+      />
+
       <!-- 用户信息展示栏 -->
-      <a-col flex="120px">
-        <div class="user-login-status">
-          <div v-if="loginUserStore.loginUser.id">
-            <a-dropdown>
-              <a-space>
-                <a-avatar :src="loginUserStore.loginUser.userAvatar" />
-                {{ loginUserStore.loginUser.userName ?? '无名' }}
-              </a-space>
-              <template #overlay>
-                <a-menu>
-                  <a-menu-item>
-                    <router-link to="/user/profile">
-                      <EditOutlined />
-                      修改信息
-                    </router-link>
-                  </a-menu-item>
-                  <a-menu-item>
-                    <router-link to="/my_space">
-                      <UserOutlined />
-                      我的空间
-                    </router-link>
-                  </a-menu-item>
-                  <a-menu-item @click="doLogout">
-                    <LogoutOutlined />
-                    退出登录
-                  </a-menu-item>
-                </a-menu>
-              </template>
-            </a-dropdown>
-          </div>
-          <div v-else>
-            <a-button type="primary" href="/user/login">登录</a-button>
-          </div>
+      <div class="user-login-status">
+        <div v-if="loginUserStore.loginUser.id">
+          <a-dropdown>
+            <a-space class="user-trigger">
+              <a-avatar :src="loginUserStore.loginUser.userAvatar" />
+              {{ loginUserStore.loginUser.userName ?? '无名' }}
+            </a-space>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item>
+                  <router-link to="/user/profile">
+                    <EditOutlined />
+                    修改信息
+                  </router-link>
+                </a-menu-item>
+                <a-menu-item>
+                  <router-link to="/my_space">
+                    <UserOutlined />
+                    我的空间
+                  </router-link>
+                </a-menu-item>
+                <a-menu-item @click="doLogout">
+                  <LogoutOutlined />
+                  退出登录
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </div>
-      </a-col>
-    </a-row>
+        <div v-else>
+          <a-button v-btn-animate type="primary" href="/user/login">登录</a-button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
 <script lang="ts" setup>
-import { computed, h, ref } from 'vue'
-import { EditOutlined, HomeOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons-vue'
-import { MenuProps, message } from 'ant-design-vue'
+import { computed, ref } from 'vue'
+import { EditOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { userLogoutUsingPost } from '@/api/userController.ts'
+import PillNav from '@/components/PillNav.vue'
+import type { PillNavItem } from '@/components/PillNav.vue'
+import logoImg from '@/assets/logo.png'
 
 const loginUserStore = useLoginUserStore()
+const router = useRouter()
 
-// 未经过滤的菜单项
-const originItems = [
-  {
-    key: '/',
-    icon: () => h(HomeOutlined),
-    label: '主页',
-    title: '主页',
-  },
-  {
-    key: '/add_picture',
-    label: '创建图片',
-    title: '创建图片',
-  },
-  {
-    key: '/admin/userManage',
-    label: '用户管理',
-    title: '用户管理',
-  },
-  {
-    key: '/admin/pictureManage',
-    label: '图片管理',
-    title: '图片管理',
-  },
-  {
-    key: '/admin/spaceManage',
-    label: '空间管理',
-    title: '空间管理',
-  },
+const logoUrl = logoImg
+const activePath = ref<string>(router.currentRoute.value.path)
+
+// 监听路由变化
+router.afterEach((to) => {
+  activePath.value = to.path
+})
+
+// 所有导航项
+const allNavItems: PillNavItem[] = [
+  { label: '主页', href: '/' },
+  { label: '创建图片', href: '/add_picture' },
+  { label: '用户管理', href: '/admin/userManage' },
+  { label: '图片管理', href: '/admin/pictureManage' },
+  { label: '空间管理', href: '/admin/spaceManage' },
 ]
 
-// 根据权限过滤菜单项
-const filterMenus = (menus = [] as MenuProps['items']) => {
-  return menus?.filter((menu) => {
-    // 管理员才能看到 /admin 开头的菜单
-    if (menu?.key?.startsWith('/admin')) {
+// 根据权限过滤
+const navItems = computed(() => {
+  return allNavItems.filter((item) => {
+    if (item.href.startsWith('/admin')) {
       const loginUser = loginUserStore.loginUser
       if (!loginUser || loginUser.userRole !== 'admin') {
         return false
@@ -108,33 +94,13 @@ const filterMenus = (menus = [] as MenuProps['items']) => {
     }
     return true
   })
-}
-
-// 展示在菜单的路由数组
-const items = computed(() => filterMenus(originItems))
-
-const router = useRouter()
-// 当前要高亮的菜单项
-const current = ref<string[]>([])
-// 监听路由变化，更新高亮菜单项
-router.afterEach((to, from, next) => {
-  current.value = [to.path]
 })
-
-// 路由跳转事件
-const doMenuClick = ({ key }) => {
-  router.push({
-    path: key,
-  })
-}
 
 // 用户注销
 const doLogout = async () => {
   const res = await userLogoutUsingPost()
   if (res.data.code === 0) {
-    loginUserStore.setLoginUser({
-      userName: '未登录',
-    })
+    loginUserStore.setLoginUser({ userName: '未登录' })
     message.success('退出登录成功')
     await router.push('/user/login')
   } else {
@@ -144,18 +110,27 @@ const doLogout = async () => {
 </script>
 
 <style scoped>
-#globalHeader .title-bar {
+#globalHeader {
+  height: 100%;
+}
+
+.header-inner {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 20px;
 }
 
-.title {
-  color: black;
-  font-size: 18px;
-  margin-left: 16px;
+.header-pill-nav {
+  flex-shrink: 0;
 }
 
-.logo {
-  height: 48px;
+.user-login-status {
+  flex-shrink: 0;
+}
+
+.user-trigger {
+  cursor: pointer;
 }
 </style>

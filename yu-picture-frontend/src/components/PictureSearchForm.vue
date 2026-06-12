@@ -56,8 +56,8 @@
       </a-form-item>
       <a-form-item>
         <a-space>
-          <a-button type="primary" html-type="submit" style="width: 96px">搜索</a-button>
-          <a-button html-type="reset" @click="doClear">重置</a-button>
+          <a-button v-btn-animate type="primary" html-type="submit" style="width: 96px">搜索</a-button>
+          <a-button v-btn-animate html-type="reset" @click="doClear">重置</a-button>
         </a-space>
       </a-form-item>
     </a-form>

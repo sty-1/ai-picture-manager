@@ -7,6 +7,7 @@ import com.nanhua.yupicturebackend.api.aliyunai.model.CreateOutPaintingTaskRespo
 import com.nanhua.yupicturebackend.model.dto.picture.*;
 import com.nanhua.yupicturebackend.model.entity.Picture;
 import com.nanhua.yupicturebackend.model.entity.User;
+import com.nanhua.yupicturebackend.model.vo.AiTagResult;
 import com.nanhua.yupicturebackend.model.vo.PictureVO;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -147,4 +148,6 @@ public interface PictureService extends IService<Picture> {
      * @param loginUser
      */
     CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser);
+
+    List<AiTagResult> generatePictureTags(GeneratePictureTagsRequest generatePictureTagsRequest, User loginUser);
 }

@@ -9,7 +9,7 @@
       <template #renderItem="{ item: picture }">
         <a-list-item style="padding: 0">
           <!-- 单张图片 -->
-          <a-card hoverable @click="doClickPicture(picture)">
+          <a-card v-card-lift @click="doClickPicture(picture)">
             <template #cover>
               <img
                 :alt="picture.name"

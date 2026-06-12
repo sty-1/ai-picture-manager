@@ -26,8 +26,10 @@ import com.nanhua.yupicturebackend.model.entity.Picture;
 import com.nanhua.yupicturebackend.model.entity.Space;
 import com.nanhua.yupicturebackend.model.entity.User;
 import com.nanhua.yupicturebackend.model.enums.PictureReviewStatusEnum;
+import com.nanhua.yupicturebackend.model.vo.AiTagResult;
 import com.nanhua.yupicturebackend.model.vo.PictureVO;
 import com.nanhua.yupicturebackend.model.vo.UserVO;
+import com.nanhua.yupicturebackend.service.ContentSafetyService;
 import com.nanhua.yupicturebackend.service.PictureService;
 import com.nanhua.yupicturebackend.service.SpaceService;
 import com.nanhua.yupicturebackend.service.UserService;
@@ -85,6 +87,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private AliYunAiApi aliYunAiApi;
+
+    @Resource
+    private ContentSafetyService contentSafetyService;
 
     @Override
     public void validPicture(Picture picture) {
@@ -215,6 +220,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return picture;
         });
+        // 公共图库图片 → 异步 AI 内容安全审核
+        if (spaceId == null) {
+            contentSafetyService.reviewPictureAsync(picture);
+        }
         // 可自行实现，如果是更新，可以清理图片资源
         // this.clearPictureFile(oldPicture);
         return PictureVO.objToVo(picture);
@@ -509,8 +518,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 校验权限，已经改为使用注解鉴权
 //        checkPictureAuth(loginUser, oldPicture);
-        // 补充审核参数
-        this.fillReviewParams(picture, loginUser);
+        // 编辑时不重置审核状态——审核状态由上传时的 fillReviewParams 或 AI 审核/管理员审核单独管理
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -584,24 +592,33 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         String category = pictureEditByBatchRequest.getCategory();
         List<String> tags = pictureEditByBatchRequest.getTags();
         ThrowUtils.throwIf(CollUtil.isEmpty(pictureIdList), ErrorCode.PARAMS_ERROR);
-        ThrowUtils.throwIf(spaceId == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
-        // 2. 校验空间权限
-        Space space = spaceService.getById(spaceId);
-        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (!space.getUserId().equals(loginUser.getId())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间访问权限");
+        // 2. 查询指定图片
+        List<Picture> pictureList;
+        if (spaceId != null) {
+            // 有空间 ID → 校验空间权限
+            Space space = spaceService.getById(spaceId);
+            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+            if (!space.getUserId().equals(loginUser.getId())) {
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间访问权限");
+            }
+            pictureList = this.lambdaQuery()
+                    .select(Picture::getId, Picture::getSpaceId)
+                    .eq(Picture::getSpaceId, spaceId)
+                    .in(Picture::getId, pictureIdList)
+                    .list();
+        } else {
+            // 无空间 ID → 查询公共图库图片（spaceId IS NULL），确保 ShardingSphere 正确路由
+            pictureList = this.lambdaQuery()
+                    .select(Picture::getId, Picture::getSpaceId)
+                    .isNull(Picture::getSpaceId)
+                    .in(Picture::getId, pictureIdList)
+                    .list();
         }
-        // 3. 查询指定图片（仅选择需要的字段）
-        List<Picture> pictureList = this.lambdaQuery()
-                .select(Picture::getId, Picture::getSpaceId)
-                .eq(Picture::getSpaceId, spaceId)
-                .in(Picture::getId, pictureIdList)
-                .list();
         if (pictureList.isEmpty()) {
             return;
         }
-        // 4. 更新分类和标签
+        // 3. 更新分类和标签
         pictureList.forEach(picture -> {
             if (StrUtil.isNotBlank(category)) {
                 picture.setCategory(category);
@@ -613,7 +630,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 批量重命名
         String nameRule = pictureEditByBatchRequest.getNameRule();
         fillPictureWithNameRule(pictureList, nameRule);
-        // 5. 操作数据库进行批量更新
+        // 4. 操作数据库进行批量更新
         boolean result = this.updateBatchById(pictureList);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "批量编辑失败");
     }
@@ -634,6 +651,162 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         createOutPaintingTaskRequest.setParameters(createPictureOutPaintingTaskRequest.getParameters());
         // 创建任务
         return aliYunAiApi.createOutPaintingTask(createOutPaintingTaskRequest);
+    }
+
+    @Override
+    public List<AiTagResult> generatePictureTags(GeneratePictureTagsRequest request, User loginUser) {
+        List<Long> pictureIdList = request.getPictureIdList();
+        if (CollUtil.isEmpty(pictureIdList)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "图片列表不能为空");
+        }
+        List<Picture> pictures = this.listByIds(pictureIdList);
+        if (CollUtil.isEmpty(pictures)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "图片不存在");
+        }
+
+        // 逐个分析图片
+        List<AiTagResult> results = new java.util.ArrayList<>();
+        for (Picture picture : pictures) {
+            try {
+                AiTagResult result = analyzeImageTags(picture);
+                if (result != null) {
+                    // 更新数据库
+                    if (StrUtil.isNotBlank(result.getCategory())) {
+                        picture.setCategory(result.getCategory());
+                    }
+                    if (CollUtil.isNotEmpty(result.getTags())) {
+                        picture.setTags(JSONUtil.toJsonStr(result.getTags()));
+                    }
+                    this.updateById(picture);
+                    result.setName(picture.getName());
+                    results.add(result);
+                }
+            } catch (Exception e) {
+                log.error("AI 分析图片 {} 失败", picture.getId(), e);
+            }
+        }
+        return results;
+    }
+
+    /**
+     * 调用 DashScope 多模态 API 分析单张图片
+     */
+    private AiTagResult analyzeImageTags(Picture picture) {
+        String imageUrl = picture.getUrl();
+        if (StrUtil.isBlank(imageUrl)) {
+            return null;
+        }
+
+        String prompt = "你是一个专业的图片内容分析与标签系统，服务于企业级智能云图库平台。\n"
+                + "\n"
+                + "## 任务\n"
+                + "分析这张图片的视觉内容，输出一个 JSON 对象，包含 category（分类）和 tags（标签）。\n"
+                + "\n"
+                + "## 分类规则（category）\n"
+                + "必须从以下列表中选出最匹配的一个：\n"
+                + "- 模板：PPT、简历、海报等可套用的设计模板\n"
+                + "- 电商：商品图、产品展示、白底商拍\n"
+                + "- 表情包：搞笑图片、网络 meme、表情素材\n"
+                + "- 素材：设计元素、背景纹理、图标、装饰\n"
+                + "- 海报：电影海报、活动宣传、广告banner\n"
+                + "- 风景：自然风光、城市建筑、旅行摄影\n"
+                + "- 人物：人像、自拍、合影、证件照\n"
+                + "- 动物：宠物、野生动物、动物摄影\n"
+                + "- 美食：食物、菜品、饮品、烹饪\n"
+                + "- 科技：数码产品、代码截图、UI界面\n"
+                + "- 教育：课件、书籍、学习资料\n"
+                + "- 其他：无法归入上述任一分类\n"
+                + "\n"
+                + "## 标签规则（tags）\n"
+                + "- 输出 3-5 个中文标签\n"
+                + "- 从主题 → 风格 → 色调，由具体到泛化排列\n"
+                + "- 标签简洁（2-6个字），不重复，不含糊\n"
+                + "- 优先描述画面中实际可见的内容，不要猜测拍摄意图\n"
+                + "\n"
+                + "## 示例\n"
+                + "输入：白色背景上的运动鞋商品图\n"
+                + "输出：{\"category\":\"电商\",\"tags\":[\"运动鞋\",\"白底图\",\"商品摄影\",\"时尚\"]}\n"
+                + "\n"
+                + "输入：一只猫趴在键盘上的搞笑照片\n"
+                + "输出：{\"category\":\"动物\",\"tags\":[\"猫咪\",\"键盘\",\"搞笑\",\"宠物\",\"生活\"]}\n"
+                + "\n"
+                + "输入：一张蓝色渐变背景的海报模板\n"
+                + "输出：{\"category\":\"模板\",\"tags\":[\"渐变\",\"蓝色\",\"海报设计\",\"背景素材\"]}\n"
+                + "\n"
+                + "## 输出要求\n"
+                + "只输出一行合法的 JSON，不要用 markdown 代码块包裹，不要加任何解释文字。";
+
+        // 构建多模态请求
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model", "qwen-vl-max");
+        java.util.Map<String, Object> responseFormat = new java.util.LinkedHashMap<>();
+        responseFormat.put("type", "json_object");
+        body.put("response_format", responseFormat);
+
+        java.util.List<java.util.Map<String, Object>> messages = new java.util.ArrayList<>();
+
+        java.util.Map<String, Object> userMsg = new java.util.LinkedHashMap<>();
+        userMsg.put("role", "user");
+
+        java.util.List<java.util.Map<String, Object>> content = new java.util.ArrayList<>();
+        java.util.Map<String, Object> imagePart = new java.util.LinkedHashMap<>();
+        imagePart.put("type", "image_url");
+        java.util.Map<String, String> imageUrlObj = new java.util.LinkedHashMap<>();
+        imageUrlObj.put("url", imageUrl);
+        imagePart.put("image_url", imageUrlObj);
+        content.add(imagePart);
+
+        java.util.Map<String, Object> textPart = new java.util.LinkedHashMap<>();
+        textPart.put("type", "text");
+        textPart.put("text", prompt);
+        content.add(textPart);
+
+        userMsg.put("content", content);
+        messages.add(userMsg);
+
+        body.put("messages", messages);
+
+        String apiKey = aliYunAiApi.getApiKey();
+        if (StrUtil.isBlank(apiKey)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "AI API Key 未配置");
+        }
+
+        cn.hutool.http.HttpResponse response = cn.hutool.http.HttpRequest
+                .post("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .body(JSONUtil.toJsonStr(body))
+                .execute();
+
+        if (!response.isOk()) {
+            log.error("AI 分析失败：{}", response.body());
+            return null;
+        }
+
+        // 解析响应
+        cn.hutool.json.JSONObject respJson = JSONUtil.parseObj(response.body());
+        String contentText = respJson.getByPath("choices[0].message.content", String.class);
+        if (StrUtil.isBlank(contentText)) {
+            return null;
+        }
+
+        // 解析 JSON（response_format=json_object 保证模型输出合法 JSON）
+        String jsonStr = contentText.trim();
+        // 兼容：万一模型仍包裹了 markdown，去掉包裹
+        if (jsonStr.startsWith("```")) {
+            jsonStr = jsonStr
+                    .replaceAll("^```(?:json)?\\s*", "")
+                    .replaceAll("\\s*```$", "");
+        }
+
+        AiTagResult result = new AiTagResult();
+        result.setId(picture.getId());
+
+        cn.hutool.json.JSONObject json = JSONUtil.parseObj(jsonStr);
+        result.setCategory(json.getStr("category"));
+        result.setTags(json.getBeanList("tags", String.class));
+
+        return result;
     }
 
     /**

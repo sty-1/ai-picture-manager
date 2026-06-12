@@ -18,7 +18,7 @@
         />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit" :loading="loading" style="width: 100%">
+        <a-button v-btn-animate type="primary" html-type="submit" :loading="loading" style="width: 100%">
           提交
         </a-button>
       </a-form-item>

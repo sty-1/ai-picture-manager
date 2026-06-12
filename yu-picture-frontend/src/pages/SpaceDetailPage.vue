@@ -6,6 +6,7 @@
       <a-space size="middle">
         <a-button
           v-if="canUploadPicture"
+          v-btn-animate
           type="primary"
           :href="`/add_picture?spaceId=${id}`"
           target="_blank"
@@ -14,6 +15,7 @@
         </a-button>
         <a-button
           v-if="canManageSpaceUser && space.spaceType === SPACE_TYPE_ENUM.TEAM"
+          v-btn-animate
           type="primary"
           ghost
           :icon="h(TeamOutlined)"
@@ -24,6 +26,7 @@
         </a-button>
         <a-button
           v-if="canManageSpaceUser"
+          v-btn-animate
           type="primary"
           ghost
           :icon="h(BarChartOutlined)"
@@ -32,7 +35,7 @@
         >
           空间分析
         </a-button>
-        <a-button v-if="canEditPicture" :icon="h(EditOutlined)" @click="doBatchEdit"> 批量编辑</a-button>
+        <a-button v-if="canEditPicture" v-btn-animate :icon="h(EditOutlined)" @click="doBatchEdit"> 批量编辑</a-button>
         <a-tooltip
           :title="`占用空间 ${formatSize(space.totalSize)} / ${formatSize(space.maxSize)}`"
         >

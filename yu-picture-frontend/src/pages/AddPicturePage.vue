@@ -20,8 +20,8 @@
     <!-- 图片编辑 -->
     <div v-if="picture" class="edit-bar">
       <a-space size="middle">
-        <a-button :icon="h(EditOutlined)" @click="doEditPicture">编辑图片</a-button>
-        <a-button type="primary" :icon="h(FullscreenOutlined)" @click="doImagePainting">
+        <a-button v-btn-animate :icon="h(EditOutlined)" @click="doEditPicture">编辑图片</a-button>
+        <a-button v-btn-animate type="primary" :icon="h(FullscreenOutlined)" @click="doImagePainting">
           AI 扩图
         </a-button>
       </a-space>
@@ -77,7 +77,7 @@
         />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit" style="width: 100%">创建</a-button>
+        <a-button v-btn-animate type="primary" html-type="submit" style="width: 100%">创建</a-button>
       </a-form-item>
     </a-form>
   </div>

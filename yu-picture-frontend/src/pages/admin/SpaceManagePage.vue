@@ -3,11 +3,11 @@
     <a-flex justify="space-between">
       <h2>空间管理</h2>
       <a-space>
-        <a-button type="primary" href="/add_space" target="_blank">+ 创建空间</a-button>
-        <a-button type="primary" ghost href="/space_analyze?queryPublic=1" target="_blank"
+        <a-button v-btn-animate type="primary" href="/add_space" target="_blank">+ 创建空间</a-button>
+        <a-button v-btn-animate type="primary" ghost href="/space_analyze?queryPublic=1" target="_blank"
           >分析公共图库</a-button
         >
-        <a-button type="primary" ghost href="/space_analyze?queryAll=1" target="_blank"
+        <a-button v-btn-animate type="primary" ghost href="/space_analyze?queryAll=1" target="_blank"
           >分析全部空间</a-button
         >
       </a-space>
@@ -40,7 +40,7 @@
         <a-input v-model:value="searchParams.userId" placeholder="请输入用户 id" allow-clear />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit">搜索</a-button>
+        <a-button v-btn-animate type="primary" html-type="submit">搜索</a-button>
       </a-form-item>
     </a-form>
     <div style="margin-bottom: 16px" />

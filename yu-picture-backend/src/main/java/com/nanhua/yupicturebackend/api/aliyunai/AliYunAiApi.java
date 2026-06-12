@@ -21,6 +21,10 @@ public class AliYunAiApi {
     @Value("${aliYunAi.apiKey}")
     private String apiKey;
 
+    public String getApiKey() {
+        return apiKey;
+    }
+
     // 创建任务地址
     public static final String CREATE_OUT_PAINTING_TASK_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting";
 

@@ -35,8 +35,8 @@
       </a-form-item>
       <a-form-item>
         <a-space>
-          <a-button type="primary" html-type="submit" :loading="loading">保存</a-button>
-          <a-button @click="doCancel">取消</a-button>
+          <a-button v-btn-animate type="primary" html-type="submit" :loading="loading">保存</a-button>
+          <a-button v-btn-animate @click="doCancel">取消</a-button>
         </a-space>
       </a-form-item>
     </a-form>

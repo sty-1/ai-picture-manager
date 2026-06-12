@@ -6,7 +6,7 @@
         style="width: calc(100% - 120px)"
         placeholder="请输入图片地址"
       />
-      <a-button type="primary" style="width: 120px" :loading="loading" @click="handleUpload">
+      <a-button v-btn-animate type="primary" style="width: 120px" :loading="loading" @click="handleUpload">
         提交
       </a-button>
     </a-input-group>

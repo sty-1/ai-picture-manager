@@ -62,19 +62,19 @@
           </a-descriptions>
           <!-- 图片操作 -->
           <a-space wrap>
-            <a-button type="primary" @click="doDownload">
+            <a-button v-btn-animate type="primary" @click="doDownload">
               免费下载
               <template #icon>
                 <DownloadOutlined />
               </template>
             </a-button>
-            <a-button :icon="h(ShareAltOutlined)" type="primary" ghost @click="doShare">
+            <a-button v-btn-animate :icon="h(ShareAltOutlined)" type="primary" ghost @click="doShare">
               分享
             </a-button>
-            <a-button v-if="canEdit" :icon="h(EditOutlined)" type="default" @click="doEdit">
+            <a-button v-if="canEdit" v-btn-animate :icon="h(EditOutlined)" type="default" @click="doEdit">
               编辑
             </a-button>
-            <a-button v-if="canDelete" :icon="h(DeleteOutlined)" danger @click="doDelete">
+            <a-button v-if="canDelete" v-btn-animate :icon="h(DeleteOutlined)" danger @click="doDelete">
               删除
             </a-button>
           </a-space>
