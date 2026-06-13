@@ -191,6 +191,18 @@ public class UserController {
     }
 
     /**
+     * 修改密码
+     */
+    @PostMapping("/change-password")
+    public BaseResponse<Boolean> changePassword(@RequestBody UserChangePasswordRequest request,
+                                                 HttpServletRequest httpRequest) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(httpRequest);
+        userService.changePassword(loginUser, request.getOldPassword(), request.getNewPassword());
+        return ResultUtils.success(true);
+    }
+
+    /**
      * 兑换会员
      */
     @PostMapping("/exchange/vip")

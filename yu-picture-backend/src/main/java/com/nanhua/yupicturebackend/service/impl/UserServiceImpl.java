@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nanhua.yupicturebackend.constant.UserConstant;
 import com.nanhua.yupicturebackend.exception.BusinessException;
 import com.nanhua.yupicturebackend.exception.ErrorCode;
+import com.nanhua.yupicturebackend.exception.ThrowUtils;
 import com.nanhua.yupicturebackend.manager.auth.StpKit;
 import com.nanhua.yupicturebackend.model.dto.user.UserQueryRequest;
 import com.nanhua.yupicturebackend.model.dto.user.VipCode;
@@ -349,6 +350,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (!updated) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "开通会员失败，操作数据库失败");
         }
+    }
+
+    @Override
+    public void changePassword(User loginUser, String oldPassword, String newPassword) {
+        if (StrUtil.hasBlank(oldPassword, newPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码不能为空");
+        }
+        if (newPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新密码不能少于 8 位");
+        }
+        if (oldPassword.equals(newPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "新密码不能和旧密码相同");
+        }
+        if (!BCrypt.checkpw(oldPassword, loginUser.getUserPassword())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "旧密码错误");
+        }
+        loginUser.setUserPassword(BCrypt.hashpw(newPassword, BCrypt.gensalt()));
+        boolean result = this.updateById(loginUser);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "修改密码失败");
     }
 
     // endregion ------- 以下代码为用户兑换会员功能 --------

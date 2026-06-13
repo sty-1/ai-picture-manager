@@ -40,6 +40,24 @@
         </a-space>
       </a-form-item>
     </a-form>
+
+    <a-divider />
+
+    <h2 style="margin-bottom: 16px">修改密码</h2>
+    <a-form name="passwordForm" layout="vertical" :model="passwordForm" @finish="handleChangePassword">
+      <a-form-item name="oldPassword" label="旧密码" :rules="[{ required: true, message: '请输入旧密码' }]">
+        <a-input-password v-model:value="passwordForm.oldPassword" placeholder="请输入旧密码" allow-clear />
+      </a-form-item>
+      <a-form-item name="newPassword" label="新密码" :rules="[{ required: true, min: 8, message: '新密码不能少于 8 位' }]">
+        <a-input-password v-model:value="passwordForm.newPassword" placeholder="请输入新密码（至少 8 位）" allow-clear />
+      </a-form-item>
+      <a-form-item name="checkPassword" label="确认新密码" :rules="[{ required: true, validator: validateCheckPassword }]">
+        <a-input-password v-model:value="passwordForm.checkPassword" placeholder="请再次输入新密码" allow-clear />
+      </a-form-item>
+      <a-form-item>
+        <a-button v-btn-animate type="primary" html-type="submit" :loading="pwdLoading">修改密码</a-button>
+      </a-form-item>
+    </a-form>
   </div>
 </template>
 
@@ -52,6 +70,7 @@ import { LoadingOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { editProfileUsingPost, getLoginUserUsingGet } from '@/api/userController.ts'
 import { uploadFileUsingPost } from '@/api/fileController.ts'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
+import myAxios from '@/request.ts'
 
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
@@ -142,6 +161,50 @@ const handleSubmit = async () => {
 
 const doCancel = () => {
   router.back()
+}
+
+// ---- 修改密码 ----
+const pwdLoading = ref(false)
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  checkPassword: '',
+})
+
+const validateCheckPassword = async (_rule: any, value: string) => {
+  if (!value) {
+    return Promise.reject('请确认新密码')
+  }
+  if (value !== passwordForm.newPassword) {
+    return Promise.reject('两次输入的新密码不一致')
+  }
+  return Promise.resolve()
+}
+
+const handleChangePassword = async () => {
+  pwdLoading.value = true
+  try {
+    const res = await myAxios.post('/api/user/change-password', {
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword,
+    })
+    if (res.data.code === 0) {
+      message.success('密码修改成功，请重新登录')
+      // 清空表单
+      passwordForm.oldPassword = ''
+      passwordForm.newPassword = ''
+      passwordForm.checkPassword = ''
+      // 清除登录态，跳转登录页
+      setTimeout(() => {
+        window.location.href = '/user/login'
+      }, 1500)
+    } else {
+      message.error('修改失败，' + res.data.message)
+    }
+  } catch (e: any) {
+    message.error('修改失败，' + (e.response?.data?.message || e.message))
+  }
+  pwdLoading.value = false
 }
 </script>
 
