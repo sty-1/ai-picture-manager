@@ -14,7 +14,7 @@ import com.nanhua.yupicturebackend.api.aliyunai.model.CreateOutPaintingTaskRespo
 import com.nanhua.yupicturebackend.exception.BusinessException;
 import com.nanhua.yupicturebackend.exception.ErrorCode;
 import com.nanhua.yupicturebackend.exception.ThrowUtils;
-import com.nanhua.yupicturebackend.manager.FileManager;
+
 import com.nanhua.yupicturebackend.manager.OssManager;
 import com.nanhua.yupicturebackend.manager.upload.FilePictureUpload;
 import com.nanhua.yupicturebackend.manager.upload.PictureUploadTemplate;
@@ -53,6 +53,10 @@ import java.awt.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 /**
@@ -64,8 +68,6 @@ import java.util.stream.Collectors;
 public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         implements PictureService {
 
-    @Resource
-    private FileManager fileManager;
 
     @Resource
     private UserService userService;
@@ -248,31 +250,58 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
      */
     @Override
     public Page<PictureVO> getPictureVOPage(Page<Picture> picturePage, HttpServletRequest request) {
+        // 获取分页查询的原始图片实体列表
         List<Picture> pictureList = picturePage.getRecords();
+        
+        // 创建新的分页对象，用于承载转换后的 VO（View Object）数据
+        // 保持原有的分页信息：当前页码、每页大小、总记录数
         Page<PictureVO> pictureVOPage = new Page<>(picturePage.getCurrent(), picturePage.getSize(), picturePage.getTotal());
+        
+        // 如果图片列表为空，直接返回空的分页对象，避免后续无效处理
         if (CollUtil.isEmpty(pictureList)) {
             return pictureVOPage;
         }
-        // 对象列表 => 封装对象列表
+        
+        // 【步骤1】将 Picture 实体对象转换为 PictureVO 视图对象
+        // 使用 Stream API 批量转换，提取公共字段到 VO 对象
         List<PictureVO> pictureVOList = pictureList.stream()
                 .map(PictureVO::objToVo)
                 .collect(Collectors.toList());
-        // 1. 关联查询用户信息
-        // 1,2,3,4
+        
+        // 【步骤2】关联查询用户信息 - 收集所有图片创建者的 ID
+        // 使用 Set 去重，避免重复查询同一个用户
+        // 例如：10张图片可能只由3个用户创建，只需查询3次
         Set<Long> userIdSet = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
-        // 1 => user1, 2 => user2
+        
+        // 【步骤3】批量查询用户信息，并构建 Map 索引
+        // key: 用户ID, value: 该用户对应的 User 对象列表（实际只有一个元素）
+        // 使用 groupingBy 构建映射关系，便于后续快速查找
+        // 例如：{1 => [user1], 2 => [user2], 3 => [user3]}
         Map<Long, List<User>> userIdUserListMap = userService.listByIds(userIdSet).stream()
                 .collect(Collectors.groupingBy(User::getId));
-        // 2. 填充信息
+        
+        // 【步骤4】填充每张图片的关联用户信息
+        // 遍历所有图片 VO，为每张图片补充创建者的详细信息
         pictureVOList.forEach(pictureVO -> {
+            // 获取图片创建者的 ID
             Long userId = pictureVO.getUserId();
+            
+            // 从用户 Map 中查找对应的用户信息
             User user = null;
             if (userIdUserListMap.containsKey(userId)) {
+                // 获取该用户的第一个（也是唯一一个）User 对象
                 user = userIdUserListMap.get(userId).get(0);
             }
+            
+            // 将 User 实体转换为 UserVO（脱敏处理，隐藏敏感信息如密码等）
+            // 并设置到 PictureVO 中，供前端展示
             pictureVO.setUser(userService.getUserVO(user));
         });
+        
+        // 将填充完整信息的 VO 列表设置到分页对象中
         pictureVOPage.setRecords(pictureVOList);
+        
+        // 返回包含用户信息的图片分页数据
         return pictureVOPage;
     }
 
@@ -347,28 +376,55 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Override
     public void doPictureReview(PictureReviewRequest pictureReviewRequest, User loginUser) {
-        // 1. 校验参数
+        // ==================== 第1步：参数校验 ====================
+        // 校验请求对象不能为空
         ThrowUtils.throwIf(pictureReviewRequest == null, ErrorCode.PARAMS_ERROR);
-        Long id = pictureReviewRequest.getId();
-        Integer reviewStatus = pictureReviewRequest.getReviewStatus();
-        PictureReviewStatusEnum reviewStatusEnum = PictureReviewStatusEnum.getEnumByValue(reviewStatus);
-        String reviewMessage = pictureReviewRequest.getReviewMessage();
+        
+        // 提取审核相关参数
+        Long id = pictureReviewRequest.getId();                      // 要审核的图片ID
+        Integer reviewStatus = pictureReviewRequest.getReviewStatus(); // 审核状态：1=通过，2=拒绝
+        PictureReviewStatusEnum reviewStatusEnum = PictureReviewStatusEnum.getEnumByValue(reviewStatus); // 转换为枚举
+        String reviewMessage = pictureReviewRequest.getReviewMessage(); // 审核意见/拒绝原因
+        
+        // 校验参数合法性：
+        // 1. id 不能为空
+        // 2. 审核状态必须是有效的枚举值（不能为 null）
+        // 3. 审核状态不能是"待审核"(0)，因为审核操作只能改为"通过"或"拒绝"
         if (id == null || reviewStatusEnum == null || PictureReviewStatusEnum.REVIEWING.equals(reviewStatusEnum)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 2. 判断图片是否存在
+        
+        // ==================== 第2步：查询图片并校验存在性 ====================
+        // 根据 ID 查询图片信息
         Picture oldPicture = this.getById(id);
+        
+        // 如果图片不存在，抛出异常
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 3. 校验审核状态是否重复，已是改状态
+        
+        // ==================== 第3步：防止重复审核 ====================
+        // 检查当前图片的审核状态是否与要设置的状态相同
+        // 例如：图片已经是"通过"状态，管理员又点击"通过"按钮
         if (oldPicture.getReviewStatus().equals(reviewStatus)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请勿重复审核");
         }
-        // 4. 数据库操作
+        
+        // ==================== 第4步：执行审核操作 ====================
+        // 创建更新对象，准备更新数据库
         Picture updatePicture = new Picture();
+        
+        // 将请求中的字段复制到更新对象（包括 id、reviewStatus、reviewMessage）
         BeanUtil.copyProperties(pictureReviewRequest, updatePicture);
+        
+        // 补充审核人信息：记录是谁审核的
         updatePicture.setReviewerId(loginUser.getId());
+        
+        // 补充审核时间：记录什么时候审核的
         updatePicture.setReviewTime(new Date());
+        
+        // 执行数据库更新操作
         boolean result = this.updateById(updatePicture);
+        
+        // 如果更新失败，抛出异常
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
     }
 
@@ -664,27 +720,38 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "图片不存在");
         }
 
-        // 逐个分析图片
-        List<AiTagResult> results = new java.util.ArrayList<>();
-        for (Picture picture : pictures) {
-            try {
-                AiTagResult result = analyzeImageTags(picture);
-                if (result != null) {
-                    // 更新数据库
-                    if (StrUtil.isNotBlank(result.getCategory())) {
-                        picture.setCategory(result.getCategory());
+        // 并行分析图片
+        ExecutorService executor = Executors.newFixedThreadPool(
+                Math.min(pictures.size(), 10));
+        List<CompletableFuture<AiTagResult>> futures = pictures.stream()
+                .map(picture -> CompletableFuture.supplyAsync(() -> {
+                    AiTagResult result = analyzeImageTags(picture);
+                    if (result != null) {
+                        if (StrUtil.isNotBlank(result.getCategory())) {
+                            picture.setCategory(result.getCategory());
+                        }
+                        if (CollUtil.isNotEmpty(result.getTags())) {
+                            picture.setTags(JSONUtil.toJsonStr(result.getTags()));
+                        }
+                        this.updateById(picture);
+                        result.setName(picture.getName());
                     }
-                    if (CollUtil.isNotEmpty(result.getTags())) {
-                        picture.setTags(JSONUtil.toJsonStr(result.getTags()));
+                    return result;
+                }, executor))
+                .collect(Collectors.toList());
+
+        List<AiTagResult> results = futures.stream()
+                .map(future -> {
+                    try {
+                        return future.get();
+                    } catch (Exception e) {
+                        log.error("AI 分析图片失败", e);
+                        return null;
                     }
-                    this.updateById(picture);
-                    result.setName(picture.getName());
-                    results.add(result);
-                }
-            } catch (Exception e) {
-                log.error("AI 分析图片 {} 失败", picture.getId(), e);
-            }
-        }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        executor.shutdown();
         return results;
     }
 
@@ -734,7 +801,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 + "输出：{\"category\":\"模板\",\"tags\":[\"渐变\",\"蓝色\",\"海报设计\",\"背景素材\"]}\n"
                 + "\n"
                 + "## 输出要求\n"
-                + "只输出一行合法的 JSON，不要用 markdown 代码块包裹，不要加任何解释文字。";
+                + "只输出一行合法的 JSON，不要用代码块包裹，不要加任何解释文字。";
 
         // 构建多模态请求
         java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
@@ -792,7 +859,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         // 解析 JSON（response_format=json_object 保证模型输出合法 JSON）
         String jsonStr = contentText.trim();
-        // 兼容：万一模型仍包裹了 markdown，去掉包裹
+        // 兼容：万一模型仍包裹了代码，去掉包裹
         if (jsonStr.startsWith("```")) {
             jsonStr = jsonStr
                     .replaceAll("^```(?:json)?\\s*", "")

@@ -6,7 +6,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.digest.DigestUtil;
+
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -30,7 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
+import cn.hutool.crypto.digest.BCrypt;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -108,15 +108,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (userPassword.length() < 8) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码错误");
         }
-        // 2. 对用户传递的密码进行加密
-        String encryptPassword = getEncryptPassword(userPassword);
-        // 3. 查询数据库中的用户是否存在
+        // 2. 查询数据库中的用户是否存在
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
-        queryWrapper.eq("userPassword", encryptPassword);
         User user = this.baseMapper.selectOne(queryWrapper);
-        // 不存在，抛异常
         if (user == null) {
+            log.info("user login failed, userAccount cannot match userPassword");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或者密码错误");
+        }
+        // 3. 验证密码
+        if (!BCrypt.checkpw(userPassword, user.getUserPassword())) {
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或者密码错误");
         }
@@ -136,9 +137,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      */
     @Override
     public String getEncryptPassword(String userPassword) {
-        // 加盐，混淆密码
-        final String SALT = "yupi";
-        return DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+        return BCrypt.hashpw(userPassword, BCrypt.gensalt());
     }
 
     @Override

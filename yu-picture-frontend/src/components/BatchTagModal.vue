@@ -155,22 +155,30 @@ const aiColumns = [
 const handleAiGenerate = async () => {
   aiLoading.value = true
   aiResults.value = []
-  const res = await generatePictureTagsUsingPost({
-    pictureIdList: props.pictureIdList,
-  })
-  if (res.data.code === 0 && res.data.data) {
-    aiResults.value = (res.data.data ?? []).map((item: API.AiTagResult) => ({
-      id: item.id,
-      name: item.name ?? '-',
-      category: item.category ?? '-',
-      tags: (item.tags ?? []).join(', '),
-    }))
-    message.success('AI 标签生成完成')
-    props.onSuccess()
-  } else {
-    message.error('AI 生成失败，' + res.data.message)
+  try {
+    const res = await generatePictureTagsUsingPost(
+      {
+        pictureIdList: props.pictureIdList,
+      },
+      { timeout: 120000 }
+    )
+    if (res.data.code === 0 && res.data.data) {
+      aiResults.value = (res.data.data ?? []).map((item: API.AiTagResult) => ({
+        id: item.id,
+        name: item.name ?? '-',
+        category: item.category ?? '-',
+        tags: (item.tags ?? []).join(', '),
+      }))
+      message.success('AI 标签生成完成')
+      props.onSuccess()
+    } else {
+      message.error('AI 生成失败，' + res.data.message)
+    }
+  } catch (e) {
+    message.error('AI 标签生成超时，请稍后刷新页面查看结果')
+  } finally {
+    aiLoading.value = false
   }
-  aiLoading.value = false
 }
 
 // ---- 分类/标签选项 ----

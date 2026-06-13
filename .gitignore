@@ -20,3 +20,8 @@ Desktop.ini
 *.zip
 *.tar.gz
 *.rar
+
+# Configuration (contains credentials, DO NOT commit)
+application.yml
+application-*.yml
+!application-example.yml

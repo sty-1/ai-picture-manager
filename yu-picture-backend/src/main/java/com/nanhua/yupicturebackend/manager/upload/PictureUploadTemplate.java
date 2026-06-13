@@ -145,6 +145,7 @@ public abstract class PictureUploadTemplate {
     /**
      * 计算图片平均颜色（十六进制）
      */
+
     private String getAverageColor(BufferedImage image) {
         // 缩小图片加速计算
         BufferedImage scaled = createThumbnail(image, 100, 100);
