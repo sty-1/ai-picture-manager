@@ -1,0 +1,72 @@
+/* 全局毛玻璃背景：卧室大桥图片 + 微点阵纹理 */
+body {
+  background-color: #f4f5f8;
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.03) 0.8px, transparent 0.8px),
+    linear-gradient(160deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.1) 100%),
+    url('/images/【哲风壁纸】卧室-壁纸-大桥.png');
+  background-size: 22px 22px, 100% 100%, cover;
+  background-position: center, center, center;
+  background-attachment: scroll, fixed, fixed;
+  background-repeat: repeat, no-repeat, no-repeat;
+  min-height: 100vh;
+}
+
+/* 让 antd layout 透明，露出 body 背景 */
+.ant-layout {
+  background: transparent !important;
+}
+
+/* 全局输入框半透明 —— 外层容器 */
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select-selector {
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* 半透明 —— 独立 input / textarea */
+.ant-input:not(.ant-input-affix-wrapper .ant-input):not(.ant-input-number .ant-input):not(.ant-picker .ant-input),
+textarea.ant-input {
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* 内嵌 input 重置为透明，避免"框中框" */
+.ant-input-affix-wrapper .ant-input,
+.ant-input-number-input,
+.ant-picker .ant-input,
+.ant-input-number .ant-input {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-input-number:hover,
+.ant-picker:hover,
+.ant-select-selector:hover {
+  border-color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12) !important;
+}
+
+.ant-input::placeholder,
+.ant-input-number-input::placeholder {
+  color: rgba(0, 0, 0, 0.3) !important;
+}

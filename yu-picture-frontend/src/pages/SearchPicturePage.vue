@@ -11,17 +11,21 @@
         />
       </template>
     </a-card>
-    <h3 style="margin: 16px 0">识图结果</h3>
-    <!-- 图片结果列表 -->
+    <div style="margin: 24px 0">
+      <a-button type="primary" size="large" :loading="searching" @click="doSearch">
+        在百度中搜索相似图片
+      </a-button>
+    </div>
+    <!-- 搜索结果列表 -->
+    <h3 v-if="dataList.length > 1" style="margin: 16px 0">识图结果</h3>
     <a-list
+      v-if="dataList.length > 1"
       :grid="{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 5, xxl: 6 }"
       :data-source="dataList"
-      :loading="loading"
     >
       <template #renderItem="{ item: picture }">
         <a-list-item style="padding: 0">
           <a :href="picture.fromUrl" target="_blank">
-            <!-- 单张图片 -->
             <a-card hoverable>
               <template #cover>
                 <img
@@ -53,6 +57,7 @@ const pictureId = computed(() => {
   return route.query?.pictureId
 })
 const picture = ref<API.PictureVO>({})
+const searching = ref(false)
 
 // 获取图片详情
 const fetchPictureDetail = async () => {
@@ -74,31 +79,39 @@ onMounted(() => {
   fetchPictureDetail()
 })
 
-// 以图搜图结果
+// 搜图结果
 const dataList = ref<API.ImageSearchResult[]>([])
-const loading = ref<boolean>(true)
-// 获取搜图结果
-const fetchResultData = async () => {
-  loading.value = true;
+
+// 点击在百度搜索
+const doSearch = async () => {
+  if (!pictureId.value) {
+    message.warn('缺少图片ID')
+    return
+  }
+  searching.value = true
+  // 在异步请求前同步打开窗口，避免被浏览器弹窗拦截器阻止
+  const searchWindow = window.open('about:blank', '_blank')
   try {
     const res = await searchPictureByPictureUsingPost({
       pictureId: pictureId.value,
     })
     if (res.data.code === 0 && res.data.data) {
       dataList.value = res.data.data ?? []
+      if (dataList.value.length > 0 && dataList.value[0].fromUrl && searchWindow) {
+        searchWindow.location.href = dataList.value[0].fromUrl
+      } else if (searchWindow) {
+        searchWindow.close()
+      }
     } else {
-      message.error('获取数据失败，' + res.data.message)
+      if (searchWindow) searchWindow.close()
+      message.error('获取搜图结果失败，' + res.data.message)
     }
   } catch (e: any) {
-    message.error('获取数据失败，' + e.message)
+    if (searchWindow) searchWindow.close()
+    message.error('获取搜图结果失败：' + e.message)
   }
-  loading.value = false;
+  searching.value = false
 }
-
-// 页面加载时请求一次
-onMounted(() => {
-  fetchResultData()
-})
 </script>
 
 <style scoped>

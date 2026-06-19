@@ -144,7 +144,8 @@ const handleImgLoadError = () => {
 
 // 构建后端代理 URL
 const buildProxyUrl = (url: string): string => {
-  return `http://localhost:8123/api/file/image/proxy?url=${encodeURIComponent(url)}`
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8123/api'
+  return `${apiBase}/file/image/proxy?url=${encodeURIComponent(url)}`
 }
 
 // 打开弹窗

@@ -117,7 +117,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
         // 校验空间是否存在
         Long spaceId = pictureUploadRequest.getSpaceId();
-        if (spaceId != null) {
+        // 0 表示公共图库，等同于 null，跳过空间校验
+        if (spaceId != null && spaceId != 0L) {
             Space space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
             // 改为使用统一的权限校验
@@ -163,7 +164,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 上传图片，得到图片信息
         // 按照用户 id 划分目录 => 按照空间划分目录
         String uploadPathPrefix;
-        if (spaceId == null) {
+        if (spaceId == null || spaceId == 0L) {
             // 公共图库
             uploadPathPrefix = String.format("public/%s", loginUser.getId());
         } else {
@@ -178,7 +179,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
         // 构造要入库的图片信息
         Picture picture = new Picture();
-        picture.setSpaceId(spaceId); // 指定空间 id
+        // 公共图库用 0L 作为分片键（ShardingSphere INSERT 要求非 null Comparable 值）
+        picture.setSpaceId(spaceId != null ? spaceId : 0L);
         picture.setUrl(uploadPictureResult.getUrl());
         picture.setThumbnailUrl(uploadPictureResult.getThumbnailUrl());
         // 支持外层传递图片名称
@@ -211,7 +213,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             // 插入数据
             boolean result = this.saveOrUpdate(picture);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败，数据库操作失败");
-            if (finalSpaceId != null) {
+            if (finalSpaceId != null && finalSpaceId != 0L) {
                 // 更新空间的使用额度
                 boolean update = spaceService.lambdaUpdate()
                         .eq(Space::getId, finalSpaceId)
@@ -223,7 +225,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             return picture;
         });
         // 公共图库图片 → 异步 AI 内容安全审核
-        if (spaceId == null) {
+        if (spaceId == null || spaceId == 0L) {
             contentSafetyService.reviewPictureAsync(picture);
         }
         // 可自行实现，如果是更新，可以清理图片资源
@@ -346,7 +348,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
         queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceId), "spaceId", spaceId);
-        queryWrapper.isNull(nullSpaceId, "spaceId");
+        queryWrapper.eq(nullSpaceId, "spaceId", 0L); // 公共图库用 0 标识
         queryWrapper.like(StrUtil.isNotBlank(name), "name", name);
         queryWrapper.like(StrUtil.isNotBlank(introduction), "introduction", introduction);
         queryWrapper.like(StrUtil.isNotBlank(picFormat), "picFormat", picFormat);
@@ -543,7 +545,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             boolean result = this.removeById(pictureId);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
             // 更新空间的使用额度，释放额度
-            if (oldPicture.getSpaceId() != null) {
+            if (oldPicture.getSpaceId() != null && oldPicture.getSpaceId() != 0L) {
                 boolean update = spaceService.lambdaUpdate()
                         .eq(Space::getId, oldPicture.getSpaceId())
                         .setSql("totalSize = totalSize - " + oldPicture.getPicSize())
@@ -584,7 +586,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     public void checkPictureAuth(User loginUser, Picture picture) {
         Long spaceId = picture.getSpaceId();
         Long loginUserId = loginUser.getId();
-        if (spaceId == null) {
+        if (spaceId == null || spaceId == 0L) {
             // 公共图库，仅本人或管理员可操作
             if (!picture.getUserId().equals(loginUserId) && !userService.isAdmin(loginUser)) {
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
@@ -664,10 +666,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     .in(Picture::getId, pictureIdList)
                     .list();
         } else {
-            // 无空间 ID → 查询公共图库图片（spaceId IS NULL），确保 ShardingSphere 正确路由
+            // 无空间 ID → 查询公共图库图片（spaceId = 0），确保 ShardingSphere 正确路由
             pictureList = this.lambdaQuery()
                     .select(Picture::getId, Picture::getSpaceId)
-                    .isNull(Picture::getSpaceId)
+                    .eq(Picture::getSpaceId, 0L)
                     .in(Picture::getId, pictureIdList)
                     .list();
         }

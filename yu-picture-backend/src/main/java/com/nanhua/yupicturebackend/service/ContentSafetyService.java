@@ -63,7 +63,7 @@ public class ContentSafetyService {
      */
     @Async
     public void reviewPictureAsync(Picture picture) {
-        if (picture == null || picture.getSpaceId() != null) {
+        if (picture == null || (picture.getSpaceId() != null && picture.getSpaceId() != 0L)) {
             return; // 只审核公共图库图片
         }
 
@@ -100,7 +100,7 @@ public class ContentSafetyService {
             // 使用 LambdaUpdateWrapper 确保 WHERE 条件包含分片键 spaceId，ShardingSphere 才能正确路由
             LambdaUpdateWrapper<Picture> wrapper = new LambdaUpdateWrapper<>();
             wrapper.eq(Picture::getId, picture.getId())
-                   .isNull(Picture::getSpaceId);
+                   .eq(Picture::getSpaceId, 0L);
             wrapper.set(Picture::getReviewStatus, newStatus);
             wrapper.set(Picture::getReviewMessage, newMessage);
             if (newTime != null) {

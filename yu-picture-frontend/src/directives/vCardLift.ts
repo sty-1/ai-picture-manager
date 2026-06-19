@@ -19,10 +19,10 @@ export const vCardLift: Directive<HTMLElement> = {
     const onEnter = () => {
       gsap.killTweensOf(el)
       gsap.to(el, {
-        scale: 1.015,
-        y: -3,
-        boxShadow: '0 12px 32px rgba(18,15,23,0.12)',
-        duration: 0.3,
+        scale: 1.02,
+        y: -4,
+        boxShadow: '0 16px 48px rgba(0,0,0,0.1)',
+        duration: 0.35,
         ease: 'power2.out',
       })
     }
@@ -32,7 +32,7 @@ export const vCardLift: Directive<HTMLElement> = {
       gsap.to(el, {
         scale: 1,
         y: 0,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+        boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
         duration: 0.25,
         ease: 'power2.in',
       })

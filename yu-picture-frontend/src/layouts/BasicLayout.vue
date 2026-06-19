@@ -11,7 +11,7 @@
         </a-layout-content>
       </a-layout>
       <a-layout-footer class="footer">
-        智能云图库 © 2026
+        人类图库MANAGER © 2026
       </a-layout-footer>
     </a-layout>
   </div>
@@ -25,35 +25,47 @@ import GlobalSider from "@/components/GlobalSider.vue";
 <style scoped>
 #basicLayout .header {
   padding-inline: 20px;
-  background: white;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
   color: unset;
-  margin-bottom: 1px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 #basicLayout .sider {
-  background: #fff;
-  border-right: 0.5px solid #eee;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(0, 0, 0, 0.04);
   padding-top: 20px;
 }
 
 #basicLayout :deep(.ant-menu-root) {
   border-bottom: none !important;
   border-inline-end: none !important;
+  background: transparent;
 }
 
 #basicLayout .content {
   padding: 28px;
-  background: linear-gradient(to right, #fefefe, #fff);
+  background: transparent;
   margin-bottom: 28px;
 }
 
 #basicLayout .footer {
-  background: #efefef;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
   padding: 16px;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   text-align: center;
+  z-index: 50;
 }
 </style>

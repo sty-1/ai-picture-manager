@@ -244,7 +244,7 @@ public class PictureController {
         // 空间权限校验
         Long spaceId = picture.getSpaceId();
         Space space = null;
-        if (spaceId != null) {
+        if (spaceId != null && spaceId != 0L) {
             boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
             ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
             // 已经改为使用注解鉴权

@@ -78,7 +78,7 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
             }
             Long spaceId = picture.getSpaceId();
             Space space = null;
-            if (spaceId != null) {
+            if (spaceId != null && spaceId != 0L) {
                 space = spaceService.getById(spaceId);
                 if (ObjUtil.isEmpty(space)) {
                     log.error("图片所在空间不存在，拒绝握手");

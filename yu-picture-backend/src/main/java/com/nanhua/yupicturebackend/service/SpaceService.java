@@ -74,4 +74,9 @@ public interface SpaceService extends IService<Space> {
      * @param space
      */
     void checkSpaceAuth(User loginUser, Space space);
+
+    /**
+     * 更新空间后，如果升级为旗舰版团队空间，创建分表
+     */
+    void checkAndCreateShardTable(Space oldSpace, Space newSpace);
 }

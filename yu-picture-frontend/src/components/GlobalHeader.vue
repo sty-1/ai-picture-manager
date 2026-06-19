@@ -4,7 +4,7 @@
       <!-- 胶囊导航（含 logo + 菜单项） -->
       <PillNav
         :logo="logoUrl"
-        logo-alt="智能云图库"
+        logo-alt="人类图库MANAGER"
         :items="navItems"
         :active-href="activePath"
         base-color="#e0e0e0"

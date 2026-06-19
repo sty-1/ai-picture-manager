@@ -87,8 +87,9 @@ public class Picture implements Serializable {
     private Long userId;
 
     /**
-     * 空间 id
+     * 空间 id：INSERT 必须包含（ShardingSphere 路由）；UPDATE 禁止修改（分片键不可变）
      */
+    @TableField(insertStrategy = FieldStrategy.IGNORED, updateStrategy = FieldStrategy.NEVER)
     private Long spaceId;
 
     /**

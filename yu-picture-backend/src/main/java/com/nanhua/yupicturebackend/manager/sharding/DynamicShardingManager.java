@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-//@Component
+@Component
 @Slf4j
 public class DynamicShardingManager {
 
@@ -41,16 +41,20 @@ public class DynamicShardingManager {
     @PostConstruct
     public void initialize() {
         log.info("初始化动态分表配置...");
-        updateShardingTableNodes();
+        try {
+            updateShardingTableNodes();
+        } catch (Exception e) {
+            log.error("动态分表配置初始化失败，将在没有动态分表的情况下继续运行", e);
+        }
     }
 
     /**
      * 获取所有动态表名，包括初始表 picture 和分表 picture_{spaceId}
      */
     private Set<String> fetchAllPictureTableNames() {
-        // 为了测试方便，直接对所有团队空间分表（实际上线改为仅对旗舰版生效）
         Set<Long> spaceIds = spaceService.lambdaQuery()
                 .eq(Space::getSpaceType, SpaceTypeEnum.TEAM.getValue())
+                .eq(Space::getSpaceLevel, SpaceLevelEnum.FLAGSHIP.getValue())
                 .list()
                 .stream()
                 .map(Space::getId)
@@ -107,30 +111,38 @@ public class DynamicShardingManager {
     }
 
     /**
+     * 判断空间是否需要分表
+     */
+    public static boolean needShardTable(Space space) {
+        return space != null
+                && space.getSpaceType() != null
+                && space.getSpaceLevel() != null
+                && SpaceTypeEnum.TEAM.getValue() == space.getSpaceType()
+                && SpaceLevelEnum.FLAGSHIP.getValue() == space.getSpaceLevel();
+    }
+
+    /**
      * 动态创建空间图片分表
      *
      * @param space
      */
     public void createSpacePictureTable(Space space) {
-        // 仅为旗舰版团队空间创建分表
-        if (space.getSpaceType() == SpaceTypeEnum.TEAM.getValue() && space.getSpaceLevel() == SpaceLevelEnum.FLAGSHIP.getValue()) {
+        if (needShardTable(space)) {
             Long spaceId = space.getId();
             String tableName = LOGIC_TABLE_NAME + "_" + spaceId;
             // 创建新表
             String createTableSql = "CREATE TABLE " + tableName + " LIKE " + LOGIC_TABLE_NAME;
             try {
                 SqlRunner.db().update(createTableSql);
-                // 更新分表
                 updateShardingTableNodes();
             } catch (Exception e) {
-                e.printStackTrace();
-                log.error("创建图片空间分表失败，空间 id = {}", space.getId());
+                log.error("创建图片空间分表失败，空间 id = {}", space.getId(), e);
             }
         }
     }
 
     /**
-     * 获取 ShardingSphere ContextManager
+     * 通过 ShardingSphere 数据源获取 ContextManager
      */
     private ContextManager getContextManager() {
         try (ShardingSphereConnection connection = dataSource.getConnection().unwrap(ShardingSphereConnection.class)) {

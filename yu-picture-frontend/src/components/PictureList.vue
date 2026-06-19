@@ -2,33 +2,33 @@
   <div class="picture-list">
     <!-- 图片列表 -->
     <a-list
-      :grid="{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 5, xxl: 6 }"
+      :grid="{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 4, xxl: 4 }"
       :data-source="dataList"
       :loading="loading"
     >
       <template #renderItem="{ item: picture }">
         <a-list-item style="padding: 0">
           <!-- 单张图片 -->
-          <a-card v-card-lift @click="doClickPicture(picture)">
+          <a-card v-card-lift @click="doClickPicture(picture)" class="picture-card">
             <template #cover>
-              <img
-                :alt="picture.name"
-                :src="picture.thumbnailUrl ?? picture.url"
-                style="height: 180px; object-fit: cover"
-              />
+              <div class="picture-cover">
+                <img
+                  :alt="picture.name"
+                  :src="picture.thumbnailUrl ?? picture.url"
+                />
+                <div class="picture-overlay">
+                  <div class="overlay-title">{{ picture.name }}</div>
+                  <a-flex wrap="wrap" :gap="4">
+                    <a-tag color="green">
+                      {{ picture.category ?? '默认' }}
+                    </a-tag>
+                    <a-tag v-for="tag in picture.tags" :key="tag">
+                      {{ tag }}
+                    </a-tag>
+                  </a-flex>
+                </div>
+              </div>
             </template>
-            <a-card-meta :title="picture.name">
-              <template #description>
-                <a-flex>
-                  <a-tag color="green">
-                    {{ picture.category ?? '默认' }}
-                  </a-tag>
-                  <a-tag v-for="tag in picture.tags" :key="tag">
-                    {{ tag }}
-                  </a-tag>
-                </a-flex>
-              </template>
-            </a-card-meta>
             <template v-if="showOp" #actions>
               <ShareAltOutlined @click="(e) => doShare(picture, e)" />
               <SearchOutlined @click="(e) => doSearch(picture, e)" />
@@ -135,4 +135,68 @@ const doShare = (picture, e) => {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.picture-card {
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.picture-card :deep(.ant-card-cover) {
+  overflow: hidden;
+  border-radius: 12px 12px 0 0;
+}
+
+.picture-card :deep(.ant-card-body) {
+  display: none;
+}
+
+.picture-cover {
+  position: relative;
+  height: 240px;
+  overflow: hidden;
+}
+
+.picture-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.picture-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px 12px 0 0;
+  padding: 10px 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+
+.picture-cover:hover .picture-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.overlay-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

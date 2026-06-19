@@ -280,7 +280,7 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 公共图库
         boolean queryPublic = spaceAnalyzeRequest.isQueryPublic();
         if (queryPublic) {
-            queryWrapper.isNull("spaceId");
+            queryWrapper.eq("spaceId", 0L); // 公共图库用 0 标识
             return;
         }
         // 分析特定空间

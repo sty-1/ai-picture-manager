@@ -118,6 +118,8 @@ public class SpaceController {
         // 操作数据库
         boolean result = spaceService.updateById(space);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 升级为旗舰团队空间时创建分表
+        spaceService.checkAndCreateShardTable(oldSpace, space);
         return ResultUtils.success(true);
     }
 
@@ -139,8 +141,11 @@ public class SpaceController {
      * 根据 id 获取空间（封装类）
      */
     @GetMapping("/get/vo")
-    public BaseResponse<SpaceVO> getSpaceVOById(long id, HttpServletRequest request) {
-        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+    public BaseResponse<SpaceVO> getSpaceVOById(Long id, HttpServletRequest request) {
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_ERROR, "空间 id 不能为空");
+        if (id <= 0) {
+            return ResultUtils.success(null);
+        }
         // 查询数据库
         Space space = spaceService.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
@@ -210,6 +215,8 @@ public class SpaceController {
         // 操作数据库
         boolean result = spaceService.updateById(space);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 升级为旗舰团队空间时创建分表
+        spaceService.checkAndCreateShardTable(oldSpace, space);
         return ResultUtils.success(true);
     }
 

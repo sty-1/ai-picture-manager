@@ -15,6 +15,7 @@ dayjs.locale('zh-cn')
 import BasicLayout from '@/layouts/BasicLayout.vue'
 import '@/styles/global-button.css'
 import '@/styles/global-input.css'
+import '@/styles/global-glass.css'
 </script>
 
 <style scoped></style>

@@ -51,10 +51,9 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     @Resource
     private TransactionTemplate transactionTemplate;
 
-    // 为了方便部署，注释掉分表
-//    @Resource
-//    @Lazy
-//    private DynamicShardingManager dynamicShardingManager;
+    @Resource
+    @Lazy
+    private DynamicShardingManager dynamicShardingManager;
 
     /**
      * 创建空间
@@ -111,11 +110,13 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                     result = spaceUserService.save(spaceUser);
                     ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "创建团队成员记录失败");
                 }
-//                // 创建分表（仅对团队空间生效）为方便部署，暂时不使用
-//                dynamicShardingManager.createSpacePictureTable(space);
                 // 返回新写入的数据 id
                 return space.getId();
             });
+            // DDL 在事务外执行，避免 MySQL 隐式提交破坏事务原子性
+            if (newSpaceId != null && newSpaceId != -1L) {
+                dynamicShardingManager.createSpacePictureTable(space);
+            }
             return Optional.ofNullable(newSpaceId).orElse(-1L);
         }
     }
@@ -244,6 +245,18 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 仅本人或管理员可编辑
         if (!space.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+    }
+
+    /**
+     * 更新空间后，如果升级为旗舰版团队空间，创建分表
+     */
+    public void checkAndCreateShardTable(Space oldSpace, Space newSpace) {
+        // 更新请求可能未包含 spaceType/spaceLevel，用旧值补全
+        if (newSpace.getSpaceType() == null) newSpace.setSpaceType(oldSpace.getSpaceType());
+        if (newSpace.getSpaceLevel() == null) newSpace.setSpaceLevel(oldSpace.getSpaceLevel());
+        if (DynamicShardingManager.needShardTable(newSpace) && !DynamicShardingManager.needShardTable(oldSpace)) {
+            dynamicShardingManager.createSpacePictureTable(newSpace);
         }
     }
 }

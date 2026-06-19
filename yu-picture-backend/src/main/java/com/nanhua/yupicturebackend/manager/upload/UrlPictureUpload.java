@@ -6,6 +6,7 @@ import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpStatus;
 import cn.hutool.http.HttpUtil;
 import cn.hutool.http.Method;
+import com.nanhua.yupicturebackend.constant.HttpConstant;
 import com.nanhua.yupicturebackend.exception.BusinessException;
 import com.nanhua.yupicturebackend.exception.ErrorCode;
 import com.nanhua.yupicturebackend.exception.ThrowUtils;
@@ -30,8 +31,9 @@ public class UrlPictureUpload extends PictureUploadTemplate {
         ThrowUtils.throwIf(StrUtil.isBlank(fileUrl), ErrorCode.PARAMS_ERROR, "文件地址为空");
 
         // 2. 校验 URL 格式
+        URL urlObj;
         try {
-            new URL(fileUrl);
+            urlObj = new URL(fileUrl);
         } catch (MalformedURLException e) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件地址格式不正确");
         }
@@ -41,8 +43,12 @@ public class UrlPictureUpload extends PictureUploadTemplate {
         );
         // 4. 发送 HEAD 请求验证文件是否存在
         HttpResponse httpResponse = null;
+        String referer = urlObj.getProtocol() + "://" + urlObj.getHost();
         try {
             httpResponse = HttpUtil.createRequest(Method.HEAD, fileUrl)
+                    .header("Referer", referer)
+                    .header("User-Agent",
+                            HttpConstant.BROWSER_USER_AGENT)
                     .execute();
             // 未正常返回，无需执行其他判断
             if (httpResponse.getStatus() != HttpStatus.HTTP_OK) {
@@ -85,7 +91,12 @@ public class UrlPictureUpload extends PictureUploadTemplate {
     @Override
     protected void processFile(Object inputSource, File file) throws Exception {
         String fileUrl = (String) inputSource;
-        // 下载文件到临时目录
-        HttpUtil.downloadFile(fileUrl, file);
+        URL urlObj = new URL(fileUrl);
+        HttpUtil.createRequest(Method.GET, fileUrl)
+                .header("Referer", urlObj.getProtocol() + "://" + urlObj.getHost())
+                .header("User-Agent",
+                        HttpConstant.BROWSER_USER_AGENT)
+                .execute()
+                .writeBody(file);
     }
 }

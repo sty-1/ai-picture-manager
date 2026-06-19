@@ -24,9 +24,15 @@
       </a-form-item>
     </a-form>
     <!-- 空间级别介绍 -->
-    <a-card title="空间级别介绍">
+    <a-card title="空间级别介绍" class="space-level-card">
       <a-typography-paragraph>
         * 目前仅支持开通普通版，如需升级空间，请联系管理员
+      </a-typography-paragraph>
+      <a-typography-paragraph>
+        QQ：<a href="mailto:2059788399@qq.com">2059788399@qq.com</a>
+      </a-typography-paragraph>
+      <a-typography-paragraph>
+        GitHub：<a href="https://github.com/sty-1" target="_blank">https://github.com/sty-1</a>
       </a-typography-paragraph>
       <a-typography-paragraph v-for="spaceLevel in spaceLevelList">
         {{ spaceLevel.text }}：大小 {{ formatSize(spaceLevel.maxSize) }}，数量
@@ -142,5 +148,17 @@ onMounted(() => {
 #addSpacePage {
   max-width: 720px;
   margin: 0 auto;
+}
+
+.space-level-card {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.space-level-card :deep(.ant-card-head) {
+  background: transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.06);
 }
 </style>
